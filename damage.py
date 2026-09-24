@@ -7,6 +7,7 @@ Three damage models, because the answer depends far more on WHERE than HOW MUCH:
 
 Run: python damage.py
 """
+import argparse
 import random
 import cv2
 import numpy as np
@@ -17,9 +18,10 @@ SCALE, BORDER = 10, 4
 det = cv2.QRCodeDetector()
 
 
-def base(ec):
+def base(ec, payload=PAYLOAD):
     # boost_error=False matters: segno otherwise silently upgrades the level
-    q = segno.make(PAYLOAD, error=ec, boost_error=False)
+    # OpenCV decodes standard QR codes, not Micro QR (which short payloads can select).
+    q = segno.make(payload, error=ec, boost_error=False, micro=False)
     return np.array([list(r) for r in q.matrix], np.uint8), q
 
 
@@ -32,9 +34,9 @@ def to_image(mat):
     return out
 
 
-def decodes(mat):
+def decodes(mat, payload=PAYLOAD):
     data, _, _ = det.detectAndDecode(to_image(mat))
-    return data == PAYLOAD
+    return data == payload
 
 
 def sticker(mat, frac, rng, keep_clear=9):
@@ -57,20 +59,41 @@ def speckle(mat, frac, rng):
     return m
 
 
-if __name__ == "__main__":
+def positive_int(value):
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return number
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--payload", default=PAYLOAD, help="text or URL to encode (default: %(default)s)")
+    parser.add_argument("--trials", type=positive_int, default=200,
+                        help="attempts per damage fraction and error level (default: %(default)s)")
+    args = parser.parse_args(argv)
+    if not args.payload:
+        parser.error("--payload must not be empty")
+    symbols = {ec: base(ec, args.payload) for ec in "lmqh"}
+    print(f"Payload: {args.payload!r}")
+    for ec, (mat, symbol) in symbols.items():
+        print(f"  EC={ec.upper()} version={symbol.version} "
+              f"modules={mat.size} ({mat.shape[0]}x{mat.shape[1]})")
+
     for name, fn, fracs in (("sticker over data", sticker, [.05, .10, .15, .20, .25]),
                             ("scattered speckle", speckle, [.01, .02, .03, .05])):
-        print(f"\n{name} — % of 200 attempts that still decoded")
+        print(f"\n{name} — % of {args.trials} attempts that still decoded")
         print("  EC  " + "".join(f"{int(f*100):>7}%" for f in fracs))
         for ec in "lmqh":
-            mat, _ = base(ec)
+            mat, _ = symbols[ec]
             rng = random.Random(21)
-            row = [sum(decodes(fn(mat, f, rng)) for _ in range(200)) / 200 for f in fracs]
+            row = [sum(decodes(fn(mat, f, rng), args.payload) for _ in range(args.trials))
+                   / args.trials for f in fracs]
             print(f"  {ec.upper():<3} " + "".join(f"{v*100:>7.1f} " for v in row))
 
     print("\ntargeted structural damage")
     for ec in ("l", "h"):
-        mat, _ = base(ec)
+        mat, _ = symbols[ec]
         n = mat.shape[0]
         for label, (rs, cs) in {
             "one finder pattern": (slice(0, 7), slice(0, 7)),
@@ -81,4 +104,8 @@ if __name__ == "__main__":
             m[rs, cs] = 0
             pct = 100 * ((rs.stop - rs.start) * (cs.stop - cs.start)) / (n * n)
             print(f"  EC={ec.upper()} {label:<22}{pct:>5.1f}% -> "
-                  f"{'decodes' if decodes(m) else 'DEAD'}")
+                  f"{'decodes' if decodes(m, args.payload) else 'DEAD'}")
+
+
+if __name__ == "__main__":
+    main()
