@@ -7,6 +7,12 @@ import damage
 
 
 class CommandLineTests(unittest.TestCase):
+    def test_empty_payload_is_a_usage_error(self):
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as error:
+                damage.main(["--payload", ""])
+        self.assertEqual(error.exception.code, 2)
+
     def test_custom_payload_round_trip_including_short_symbols(self):
         for payload in ("hello", "https://example.org/" + "a" * 80):
             for ec in "lmqh":

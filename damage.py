@@ -72,6 +72,8 @@ def main(argv=None):
     parser.add_argument("--trials", type=positive_int, default=200,
                         help="attempts per damage fraction and error level (default: %(default)s)")
     args = parser.parse_args(argv)
+    if not args.payload:
+        parser.error("--payload must not be empty")
     symbols = {ec: base(ec, args.payload) for ec in "lmqh"}
     print(f"Payload: {args.payload!r}")
     for ec, (mat, symbol) in symbols.items():
