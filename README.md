@@ -20,6 +20,22 @@ pip install segno opencv-python-headless pillow numpy
 python damage.py
 ```
 
+Choose the text or URL to encode and the number of attempts per damage fraction
+and error-correction level:
+
+```bash
+python damage.py --payload "https://example.org/my-code" --trials 100
+```
+
+Defaults remain `https://example.com/hello` and 200 trials. `--trials` must be a
+positive integer. The header prints the QR version, dimensions, and total module
+count (including structural modules, excluding the quiet border) for each error
+level. Version is chosen automatically from the payload; short payloads still use
+standard QR codes because OpenCV does not decode Micro QR. The random seed remains
+21. Targeted structural checks run once per feature, independent of `--trials`.
+
+Run the offline tests with `python -m unittest -v` after installing the dependencies above.
+
 Generation is [segno](https://segno.readthedocs.io/), decoding is OpenCV's
 `QRCodeDetector`, and damage is applied to the module matrix before rendering,
 so "15% damaged" means exactly that fraction of modules.
